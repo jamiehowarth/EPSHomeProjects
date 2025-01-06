@@ -1,0 +1,347 @@
+esphome:
+  name: esphome-web-0a5762
+  friendly_name: esphome-fcu
+  min_version: 2024.11.0
+  name_add_mac_suffix: false
+
+rp2040:
+  board: rpipicow
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+# Allow Over-The-Air updates
+ota:
+- platform: esphome
+
+wifi:
+  ssid: "HowarthWifi"  
+  password: "heyes358"
+  manual_ip:
+    # Set this to the IP of the ESP
+    static_ip: 10.248.100.235
+    # Set this to the IP address of the router. Often ends with .1
+    gateway: 10.248.100.1
+    # The subnet of the network. 255.255.255.0 works for most home networks.
+    subnet: 255.255.255.0
+
+
+globals:
+  - id: global_fire_temp
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: global_hearth_temp
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: global_fan_speed
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: global_air_vent
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: global_current_state
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+time:
+  - platform: homeassistant
+    id: current_time
+
+output:
+  - platform: gpio
+    pin: 32
+    id: led
+
+  - platform: gpio
+    pin: GPIO06
+    id: wood_led
+
+  #- platform: rp2040_pwm
+  #  pin: GPIO07
+  #  id: vent_led
+
+  #- platform: rp2040_pwm
+  #  pin: GPIO08
+  #  id: fan_led
+
+  #- platform: gpio
+  #  pin: GPIO09
+  #  id: target_led
+
+  - platform: gpio
+    pin: GPIO15
+    id: buzzer
+
+  - platform: ac_dimmer
+    id: fan_pwm
+    gate_pin: GPIO26
+    zero_cross_pin:
+      number: GPIO27
+      mode:
+        input: true
+      inverted: yes
+#    min_power: 0.0
+#    max_power: 100.0%
+#    method: trailing
+
+#  - platform: rp2040_pwm
+#    pin: GPIO26
+#    id: fan_pwm
+#    frequency: 60 Hz
+#    inverted: true
+#    zero_means_zero: True
+#    min_power: 0%
+#    max_power: 100%
+
+#  - platform: rp2040_pwm
+#    id: servo_pwm_output
+#    pin: GPIO08
+#    inverted: true
+#    frequency: 60 Hz
+
+  - platform: template
+    id: air_vent
+    type: float
+    write_action:
+      - number.set:
+          id: vent_position
+          value: !lambda |-
+            int pct = id(fire_thermostat).get_output_value() * 5.0;
+            if (state == 0) {
+              pct = 0;
+            } else if (pct > 100) {
+              pct = 100;
+            } else if (pct < 25 && pct > 0) {
+              pct = 25;
+            }
+            return pct; 
+
+  - platform: template
+    id: fire_fan
+    type: float
+    write_action:
+      - number.set:
+          id: fan_speed
+          value: !lambda |-
+            int pct = -id(fire_thermostat).get_output_value() * 10.0;
+            if (state == 0) {
+              pct = 0;
+            } else if (pct > 100) {
+              pct = 100;
+            } else if (pct < 25 && pct > 0) {
+              pct = 25;
+            }  
+            return pct;
+
+interval:
+  - interval: 1000ms
+    then:
+      - output.turn_on: led
+      - delay: 100ms
+      - output.turn_off: led
+
+number:
+  - platform: template
+    name: Vent Position
+    id: vent_position
+    min_value: 0
+    initial_value: 0
+    max_value: 100
+    step: 1
+    optimistic: true
+    set_action:
+      then:
+        - globals.set: 
+            id: global_air_vent
+            value: !lambda 'return x;'
+        - logger.log:
+            format: "Air vent was changed to %d!"
+            args: [ x ]
+#      - servo.write:
+#          id: vent_servo
+#          level: !lambda |-
+#            return 2*state - 1; // converts range [0,1] to [-1,1]    
+
+  - platform: template
+    name: Fan Speed
+    id: fan_speed
+    min_value: 0
+    initial_value: 0
+    max_value: 100
+    step: 1
+    optimistic: true
+    set_action:
+      then:
+        - output.set_level:
+            id: fan_pwm
+            level: !lambda |-
+              return x / 10.0;
+        - globals.set: 
+            id: global_fan_speed
+            value: !lambda 'return x;'
+        - logger.log:
+            format: "Fan Speed was changed to %d!"
+            args: [ x ]
+
+sensor:
+  - platform: template
+    name: servo sensor position
+    id: servo_sensor
+  
+  - platform: template
+    name: output value
+    unit_of_measurement: "%"
+    id: o_term
+    accuracy_decimals: 2
+
+  - platform: template
+    name: error value
+    unit_of_measurement: "°F"
+    id: e_term
+    accuracy_decimals: 2
+    on_value:
+      then:
+        - globals.set:
+            id: global_current_state
+            value: !lambda |-
+              id(wood_led).turn_off();
+              if (id(in_deadband_term).state == 1) {
+                return "Perfect";
+              } else {
+                if (x < -50) {
+                  id(wood_led).turn_on();
+                  return "Needs Wood!";
+                } else if (x < 0) {
+                  return "Cool";
+                } else {
+                  return "Hot";
+                }
+              }
+
+  - platform: template
+    name: is in deadband
+    id: in_deadband_term
+    accuracy_decimals: 0
+
+  - platform: adc
+    pin: TEMPERATURE
+    name: "Core Temperature"
+    unit_of_measurement: "°C"
+    filters:
+      - lambda: return 27 - (x - 0.706f) / 0.001721f;
+
+  - platform: max6675
+    name: "Fire Temperature"
+    id: fire_temperature
+    cs_pin: GPIO10
+    update_interval: 1000ms
+    on_value:
+      then:
+        - globals.set:
+            id: global_fire_temp
+            value: !lambda 'return x;'
+
+  - platform: max6675
+    name: "Hearth Temperature"
+    cs_pin: GPIO11
+    update_interval: 1000ms
+    on_value:
+      then:
+        - globals.set:
+            id: global_hearth_temp
+            value: !lambda 'return x;'
+
+# Example configuration entry
+#servo:
+#  - id: vent_servo
+#    output: servo_pwm_output
+
+spi:
+  miso_pin: GPIO16
+  clk_pin: GPIO18
+
+i2c:
+  sda: GPIO04
+  scl: GPIO05
+  scan: true
+  id: bus_a
+
+display:
+  - platform: lcd_pcf8574
+    i2c_id: bus_a
+    update_interval: 2s
+    id: lcd_display
+    dimensions: 20x4
+    address: 0x27
+    lambda: |-
+      it.printf(0,1, "Fire  : XXX    : XXX");
+      it.printf(0,2, "Fan   : XXX Air: XXX");
+      it.printf(0,3, "Status:             ");
+      it.strftime(0, 0, "%H:%M:%S  %m.%d.%Y", id(current_time).now());
+      it.printf(8, 1,"%3i", (id(global_fire_temp) * 9/5) + 32);
+      it.printf(17, 1,"%3i", (id(global_hearth_temp) * 9/5) + 32);
+      it.printf(8,2, "%3i", id(global_fan_speed));
+      it.printf(17,2, "%3i", id(global_air_vent));
+      it.printf(8,3, "%s", id(global_current_state).c_str());
+
+#fan:
+#  - platform: speed
+#    output: fan_pwm
+#    id: fire_fan
+#    name: "Fire Fan"
+#    speed_count: 100
+#    on_speed_set:
+#    - logger.log:
+#        format: "Fan Speed was changed to %d!"
+#        args: [ x ]
+
+climate:
+  - platform: pid
+    name: "Fire Thermostat"
+    id: fire_thermostat
+
+    sensor: fire_temperature
+
+    default_target_temperature: 500°F
+    heat_output: air_vent
+    cool_output: fire_fan
+
+    # The extents of the HA Thermostat
+    visual:
+      min_temperature: 300 °F
+      max_temperature: 550 °F
+  
+    control_parameters:
+      kp: 0.40000
+      ki: 0.25000
+      kd: 0.56301
+      output_averaging_samples: 5    
+      derivative_averaging_samples: 5 
+  
+    deadband_parameters:
+      threshold_high: 10.0°C
+      threshold_low: -10.0°C
+      kp_multiplier: 0.0   # proportional gain turned off inside deadband
+      ki_multiplier: 0.05  # integral accumulates at only 5% of normal ki
+      kd_multiplier: 0.0 
+
+    # ON state change, publish the values to the x_term numbers defined 
+    # above, so that they can be viewed in HA
+    on_state:
+      - sensor.template.publish:
+          id: o_term
+          state: !lambda 'return -id(fire_thermostat).get_output_value();'
+      - sensor.template.publish:
+          id: in_deadband_term
+          state: !lambda 'return id(fire_thermostat).in_deadband();'
+      - sensor.template.publish:
+          id: e_term
+          state: !lambda 'return -id(fire_thermostat).get_error_value();'
