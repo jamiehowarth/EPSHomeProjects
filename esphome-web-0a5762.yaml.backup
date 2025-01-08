@@ -88,7 +88,6 @@ output:
       mode:
         input: true
       inverted: yes
-    init_with_half_cycle: false
 #    min_power: 0.0
 #    max_power: 100.0%
 #    method: trailing
@@ -120,8 +119,8 @@ output:
               pct = 0;
             } else if (pct > 100) {
               pct = 100;
-            } else if (pct < 10 && pct > 0) {
-              pct = 10;
+            } else if (pct < 25 && pct > 0) {
+              pct = 25;
             }
             return pct; 
 
@@ -132,13 +131,13 @@ output:
       - number.set:
           id: fan_speed
           value: !lambda |-
-            int pct = -id(fire_thermostat).get_output_value() * 15.0;
+            int pct = -id(fire_thermostat).get_output_value() * 10.0;
             if (state == 0) {
               pct = 0;
             } else if (pct > 100) {
               pct = 100;
-            } else if (pct < 10 && pct > 0) {
-              pct = 10;
+            } else if (pct < 25 && pct > 0) {
+              pct = 25;
             }  
             return pct;
 

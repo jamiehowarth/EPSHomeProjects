@@ -1,0 +1,36 @@
+
+esphome:
+  name: esphome-web-0a5765
+  friendly_name: esphome-fcu
+  min_version: 2024.11.0
+  name_add_mac_suffix: false
+
+rp2040:
+  board: rpipicow
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+# Allow Over-The-Air updates
+ota:
+- platform: esphome
+
+wifi:
+  ssid: "HowarthWifi"  
+  password: "heyes358"
+  manual_ip:
+    # Set this to the IP of the ESP
+    static_ip: 10.248.100.237
+    # Set this to the IP address of the router. Often ends with .1
+    gateway: 10.248.100.1
+    # The subnet of the network. 255.255.255.0 works for most home networks.
+    subnet: 255.255.255.0
+
+  # Enable fallback hotspot in case wifi connection fails
+  ap:
+    ssid: "Testfcu Fallback Hotspot"
+    password: "HI2rYc9dquGW"
+    

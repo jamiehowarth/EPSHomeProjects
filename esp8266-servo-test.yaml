@@ -1,0 +1,48 @@
+esphome:
+  name: "esp8266-servo-test"
+  friendly_name: "esp8266-servo-test"
+
+esp8266:
+  board: esp01_1m
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: HowarthWifi
+  password: heyes358
+  manual_ip:
+    # Set this to the IP of the ESP
+    static_ip: 10.248.100.236
+    # Set this to the IP address of the router. Often ends with .1
+    gateway: 10.248.100.1
+    # The subnet of the network. 255.255.255.0 works for most home networks.
+    subnet: 255.255.255.0
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "ESP8266-SERVO Fallback Hotspot"
+    password: "e3t7JhOecCR5"
+
+captive_portal:
+
+time:
+- platform: homeassistant
+  id: current_time
+
+# Example configuration entry
+pca9685:
+  - id: pca9685_hub
+    frequency: 500
+
+# Individual outputs
+output:
+  - platform: pca9685
+    pca9685_id: 'pca9685_hub'
+    channel: 0
