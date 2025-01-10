@@ -36,13 +36,43 @@ time:
 - platform: homeassistant
   id: current_time
 
-# Example configuration entry
+i2c:
+  sda: GPIO04
+  scl: GPIO05
+  scan: true
+  id: bus_a
+  
 pca9685:
   - id: pca9685_hub
-    frequency: 500
+    address: 0x40
+    frequency: 60
+    i2c_id: bus_a
 
 # Individual outputs
 output:
   - platform: pca9685
-    pca9685_id: 'pca9685_hub'
+    id: vent_output
+    pca9685_id: pca9685_hub
     channel: 0
+
+  - platform: gpio
+    pin: GPIO16
+    inverted: true
+    id: vent_enable
+
+servo:
+  - id: vent_servo
+    output: vent_output
+
+interval:
+  - interval: 10s
+    then:
+      - output.turn_on: vent_enable
+      - servo.write:
+          id: vent_servo
+          level: -50.0%
+      - delay: 5s
+      - servo.write:
+          id: vent_servo
+          level: 50.0%
+    
