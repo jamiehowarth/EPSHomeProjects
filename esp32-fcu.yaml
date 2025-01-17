@@ -1,0 +1,132 @@
+esphome:
+  name: esp32-fcu
+  friendly_name: esp32-fcu
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "tD0yI00KsjH1QrzD1vaf7HfPiH/NNYTqTWl8ycsf8R8="
+
+ota:
+  - platform: esphome
+    password: "fb4c8d0fb4ee306882a663a2d796b5ad"
+
+wifi:
+  ssid: HowarthWifi
+  password: heyes358
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Esp32-Fcu Fallback Hotspot"
+    password: "adsoGGIKBK2S"
+
+time:
+  - platform: homeassistant
+    id: current_time
+
+globals:
+  - id: global_fire_temp
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: global_hearth_temp
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: global_fan_speed
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: global_air_vent
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: global_current_state
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+spi:
+  miso_pin: GPIO19
+  clk_pin: GPIO18
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+  id: bus_a
+
+sensor:
+
+  - platform: max6675
+    name: "Fire Temperature"
+    id: fire_temperature
+    cs_pin: GPIO16
+    update_interval: 1000ms
+    on_value:
+      then:
+        - globals.set:
+            id: global_fire_temp
+            value: !lambda 'return x;'
+
+  - platform: max6675
+    name: "Hearth Temperature"
+    cs_pin: GPIO17
+    update_interval: 1000ms
+    on_value:
+      then:
+        - globals.set:
+            id: global_hearth_temp
+            value: !lambda 'return x;'
+
+interval:
+  - interval: 1000ms
+    then:
+      - output.turn_on: led
+      - delay: 100ms
+      - output.turn_off: led
+
+display:
+  - platform: lcd_pcf8574
+    i2c_id: bus_a
+    update_interval: 2s
+    id: lcd_display
+    dimensions: 20x4
+    address: 0x27
+    lambda: |-
+      it.printf(0,1, "Fire  : XXX    : XXX");
+      it.printf(0,2, "Fan   : XXX Air: XXX");
+      it.printf(0,3, "Status:             ");
+      it.strftime(0, 0, "%H:%M:%S  %m.%d.%Y", id(current_time).now());
+      it.printf(8, 1,"%3i", (id(global_fire_temp) * 9/5) + 32);
+      it.printf(17, 1,"%3i", (id(global_hearth_temp) * 9/5) + 32);
+#      it.printf(8,2, "%3i", id(global_fan_speed));
+#      it.printf(17,2, "%3i", id(global_air_vent));
+#      it.printf(8,3, "%s", id(global_current_state).c_str());
+
+
+output:
+  - platform: gpio
+    pin: GPIO02
+    id: led
+
+  - platform: ac_dimmer
+    id: fan_pwm
+    gate_pin: GPIO18
+    zero_cross_pin:
+      number: GPIO19
+      mode:
+        input: true
+      inverted: yes
+    init_with_half_cycle: false
+
+captive_portal:
+    
